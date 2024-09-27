@@ -1,6 +1,6 @@
 import argparse
 from system_prompts import get_attacker_system_prompt
-from loggers import WandBLogger
+#from loggers import WandBLogger
 from judges import load_judge
 from conversers import load_attack_and_target_models
 from common import process_target_response, get_init_msg, conv_template
@@ -16,7 +16,7 @@ def main(args):
 
     judgeLM = load_judge(args)
     
-    logger = WandBLogger(args, system_prompt)
+    #logger = WandBLogger(args, system_prompt)
 
     # Initialize conversations
     batchsize = args.n_streams
@@ -47,19 +47,20 @@ def main(args):
         print("Finished getting target responses.")
 
         # Get judge scores
-        judge_scores = judgeLM.score(adv_prompt_list,target_response_list)
+        judge_scores = judgeLM.judge_score(adv_prompt_list,target_response_list)
         print("Finished getting judge scores.")
         
-        # Print prompts, responses, and scores
+        # Print prompts, responses, and score
         for i,(prompt,improv,response, score) in enumerate(zip(adv_prompt_list,improv_list,target_response_list, judge_scores)):
             print(f"{i+1}/{batchsize}\n\n[IMPROVEMENT]:\n{improv} \n\n[PROMPT]:\n{prompt} \n\n[RESPONSE]:\n{response}\n\n[SCORE]:\n{score}\n\n")
 
         # WandB log values
+        '''
         logger.log(iteration, 
                 extracted_attack_list,
                 target_response_list,
                 judge_scores)
-
+        '''
         # Truncate conversation to avoid context length issues
         for i, conv in enumerate(convs_list):
             conv.messages = conv.messages[-2*(args.keep_last_n):]
@@ -69,7 +70,7 @@ def main(args):
             print("Found a jailbreak. Exiting.")
             break
 
-    logger.finish()
+    #logger.finish()
 
 
 if __name__ == '__main__':
@@ -79,10 +80,18 @@ if __name__ == '__main__':
     ########### Attack model parameters ##########
     parser.add_argument(
         "--attack-model",
-        default = "vicuna",
+        default = "chatgroq",
         help = "Name of attacking model.",
-        choices=["vicuna", "llama-2", "gpt-3.5-turbo", "gpt-4", "claude-instant-1","claude-2", "palm-2"]
+        choices=["vicuna", 
+                 "vicuna-api-model", 
+                 "gpt-3.5-turbo", 
+                 "gpt-4", 
+                 "gpt-4-turbo", 
+                 "gpt-4-1106-preview", # This is same as gpt-4-turbo
+                 'llama-2-api-model',
+                 "chatgroq"]
     )
+
     parser.add_argument(
         "--attack-max-n-tokens",
         type = int,
@@ -99,10 +108,21 @@ if __name__ == '__main__':
 
     ########### Target model parameters ##########
     parser.add_argument(
-        "--target-model",
-        default = "vicuna",
-        help = "Name of target model.",
-        choices=["vicuna", "llama-2", "gpt-3.5-turbo", "gpt-4", "claude-instant-1","claude-2", "palm-2"]
+    "--target-model",
+    default = "chatgroq",
+    help = "Name of target model.",
+    choices=["llama-2",
+                'llama-2-api-model', 
+                "vicuna",
+                'vicuna-api-model', 
+                "gpt-3.5-turbo", 
+                "gpt-4",
+                'gpt-4-turbo', 
+                'gpt-4-1106-preview', # This is same as gpt-4-turbo
+                "palm-2",
+                "gemini-pro",
+                "chatgroq",
+                ]
     )
     parser.add_argument(
         "--target-max-n-tokens",
@@ -115,9 +135,9 @@ if __name__ == '__main__':
     ############ Judge model parameters ##########
     parser.add_argument(
         "--judge-model",
-        default="gpt-3.5-turbo",
+        default="chatgroq",
         help="Name of judge model.",
-        choices=["gpt-3.5-turbo", "gpt-4","no-judge"]
+        choices=["gpt-3.5-turbo", "gpt-4","no-judge", "chatgroq"]
     )
     parser.add_argument(
         "--judge-max-n-tokens",

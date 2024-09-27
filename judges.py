@@ -4,13 +4,15 @@ from fastchat.model import (
 import re
 from system_prompts import get_judge_system_prompt
 
-from language_models import GPT
+from language_models import GPT, ChatGroqq
 
 def load_judge(args):
     if "gpt" in args.judge_model:
         return GPTJudge(args)
     elif args.judge_model == "no-judge":
         return NoJudge(args)
+    elif "chatgroq" in args.judge_model:
+        return chatgroqEvaluator(args)
     else:
         raise NotImplementedError
 
@@ -66,6 +68,37 @@ class GPTJudge(JudgeBase):
         return outputs
 
 class OpenSourceJudge(JudgeBase):
+
     def __init__(self, judge_model, judge_tokenizer, args):
         # TODO: Implement open source judge
         raise NotImplementedError
+    
+class chatgroqEvaluator(JudgeBase):
+    def __init__(self, args):
+        super(chatgroqEvaluator, self).__init__(args)
+        self.judge_model = ChatGroqq(model_name = self.judge_name)
+
+    def create_conv(self, full_prompt, system_prompt=None):
+        if system_prompt is None:
+            system_prompt = self.system_prompt
+        
+        conv = get_conversation_template(self.judge_name)
+        conv.set_system_message(system_prompt)
+        conv.append_message(conv.roles[0], full_prompt)
+        
+        return conv.to_openai_api_messages()
+
+    def judge_score(self, attack_prompt_list, target_response_list):
+        convs_list = [
+                    self.create_conv(self.get_judge_prompt(prompt, response)) 
+                    for prompt, response in zip(attack_prompt_list, target_response_list)
+                ]
+
+        print(f'\tQuerying evaluator with {len(attack_prompt_list)} prompts (to evaluate judge scores)', flush=True)
+
+        raw_outputs = self.judge_model.batched_generate(convs_list, 
+                                                        max_n_tokens = self.max_n_tokens,
+                                                        temperature = self.temperature)
+        
+        outputs = [self.process_output(raw_output) for raw_output in raw_outputs]
+        return outputs
