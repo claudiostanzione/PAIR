@@ -4,9 +4,12 @@ import os
 import time
 import torch
 import gc
+from dotenv import load_dotenv
 from typing import Dict, List
-import google.generativeai as palm
+#import google.generativeai as palm
+from langchain_groq import ChatGroq
 
+load_dotenv(override=True)
 
 class LanguageModel():
     def __init__(self, model_name):
@@ -176,9 +179,9 @@ class Claude():
                         max_n_tokens: int, 
                         temperature: float,
                         top_p: float = 1.0,):
-        return [self.generate(conv, max_n_tokens, temperature, top_p) for conv in convs_list]
-        
-class PaLM():
+        return [self.generate(conv, max_n_tokens, temperature, top_p) for conv in convs_list]   
+
+'''class PaLM():
     API_RETRY_SLEEP = 10
     API_ERROR_OUTPUT = "$ERROR$"
     API_QUERY_SLEEP = 1
@@ -195,15 +198,15 @@ class PaLM():
                 max_n_tokens: int, 
                 temperature: float,
                 top_p: float):
-        '''
-        Args:
-            conv: List of dictionaries, 
-            max_n_tokens: int, max number of tokens to generate
-            temperature: float, temperature for sampling
-            top_p: float, top p for sampling
-        Returns:
-            str: generated response
-        '''
+        
+        #Args:
+            #conv: List of dictionaries, 
+            #max_n_tokens: int, max number of tokens to generate
+            #temperature: float, temperature for sampling
+            #top_p: float, top p for sampling
+        #Returns:
+            #str: generated response
+        
         output = self.API_ERROR_OUTPUT
         for _ in range(self.API_MAX_RETRY):
             try:
@@ -235,3 +238,57 @@ class PaLM():
                         temperature: float,
                         top_p: float = 1.0,):
         return [self.generate(conv, max_n_tokens, temperature, top_p) for conv in convs_list]
+'''
+
+class ChatGroqq():
+    API_RETRY_SLEEP = 10
+    API_ERROR_OUTPUT = "$ERROR$"
+    API_QUERY_SLEEP = 0.5
+    API_MAX_RETRY = 20
+    API_TIMEOUT = 20
+    API_KEY = os.getenv("GROQCLOUD_API_KEY")
+
+    def __init__(self, model_name) -> None:
+        self.model_name = model_name
+        self.model= ChatGroq(
+            groq_api_key=self.API_KEY,
+            model_name="mixtral-8x7b-32768"
+            )
+
+
+    def generate(self, conv: List[Dict], 
+                max_n_tokens: int, 
+                temperature: float,
+                top_p: float):
+        '''
+        Args:
+            conv: List of dictionaries, OpenAI API format
+            max_n_tokens: int, max number of tokens to generate
+            temperature: float, temperature for sampling
+            top_p: float, top p for sampling
+        Returns:
+            str: generated response
+        '''
+        output = self.API_ERROR_OUTPUT
+
+
+        for _ in range(self.API_MAX_RETRY):
+            try: 
+                
+                response = self.model.invoke(conv)
+                output = response.content
+                break
+            except Exception as e: 
+                print(type(e), e)
+                time.sleep(self.API_RETRY_SLEEP)
+        
+            time.sleep(self.API_QUERY_SLEEP)
+        return output 
+    
+    def batched_generate(self, 
+                        convs_list: List[List[Dict]],
+                        max_n_tokens: int, 
+                        temperature: float,
+                        top_p: float = 1.0,):
+        return [self.generate(conv, max_n_tokens, temperature, top_p) for conv in convs_list]
+    
